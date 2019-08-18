@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <array name="pictureable_strings">
+        <item>@string/Cats</item>
+        <item>@string/People</item>
+        <item>@string/Cars</item>
+        <item>@string/Other</item>
+    </array>
+</resources>

@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">FLIROne_SIPL</string>
+    <string name="txtTuning">Tuning...</string>
+
+    <string name="DialogTitleMsg">Keep or discard data dialog \n</string>
+
+    <string name="Cats">Cats</string>
+    <string name="People">People</string>
+    <string name="Cars">Cars</string>
+    <string name="Other">Other</string>
+
+</resources>
