@@ -28,23 +28,34 @@ import java.util.Date;
 import java.util.EnumSet;
 
 
+
+
 public class MainActivity extends AppCompatActivity implements Device.Delegate , FrameProcessor.Delegate , ExampleDialog.ExampleDialogListener {
 
+    private static final String TAG = "FLIROne. [Roy's msg]";
 
-    //
+    // Flir one class for frame processing
     FrameProcessor frameProcessor;
     //
     private Device.TuningState currentTuningState = Device.TuningState.Unknown;
 
     //stuff for the floating dialog
     // ?
-    String extra_filename_info_from_user;
+    String extra_filename_info_from_user;  //todo: check if needed.
+
+
+    // view variable for displaying the received frame.
+    private ImageView imageView;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+
+        imageView = (ImageView)findViewById(R.id.imageView);
+
 
         //todo: important:
         // How do I get the temperature out of the pixels?
@@ -55,7 +66,8 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
 
         //todo: only BlendedMSXRGBA8888Image realy works... the visualAligned sends back an image, but then for some strange reason, thermalRadiometric values are returned of a different size
         // FLIRONE part
-        frameProcessor = new FrameProcessor(this, this, EnumSet.of(RenderedImage.ImageType.BlendedMSXRGBA8888Image, RenderedImage.ImageType.ThermalRadiometricKelvinImage));  //todo: change image type !!?!?!
+                                    //note: previously the first arg was "BlendedMSXRGBA8888Image", and i switched it to ""
+        frameProcessor = new FrameProcessor(this, this, EnumSet.of(RenderedImage.ImageType.VisibleAlignedRGBA8888Image, RenderedImage.ImageType.ThermalRadiometricKelvinImage));  //todo: change image type !!?!?!
         frameProcessor.setImagePalette(RenderedImage.Palette.Hottest);
         // note the "enum set" above. i should be able to change this to more than 1 type if i  want to produce more than 1 type of frame.
         // note: in order to receive different formats, use the setFrameTypes method with a Set of as many formats as you want.
@@ -79,7 +91,6 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
 
     Device flirDevice;
 
-    private static final String TAG = "FLIRONE_1. [Roy's msg]";
 
     @Override
     public void onDeviceConnected(Device device) {
@@ -93,22 +104,6 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
             @Override
             public void onFrameReceived(Frame frame) {
                 // todo: "frame" is supposed to be the raw data !
-                // Raw frames are
-                //rendered to usable image formats by an instance of the FrameProcessor class.
-
-                //implementing new code to use "threading" for faster more efficient image processing:
-                // note - before the edit, the only line was this:
-//                frameProcessor.processFrame(frame);  //from video: "here we pass each frame received to the frame processor."
-
-//                final Frame temp_frame_for_final_error = frame;
-//                new Thread(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        frameProcessor.processFrame(temp_frame_for_final_error);  //from video: "here we pass each frame received to the frame processor."
-//                    }
-//                }).start();
-
-                //todo: new option:
                 if (currentTuningState != Device.TuningState.InProgress){
                     frameProcessor.processFrame(frame, FrameProcessor.QueuingOption.CLEAR_QUEUED);
 //                    thermalSurfaceView.requestRender();
@@ -134,13 +129,13 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
     }
 
     RenderedImage last_radiometric_image_rendered; //will be used later when we press the button
-
-    Bitmap last_bitmap_from_rendered_image = null; //will be used later in the dialog screen
+    Bitmap last_bitmap_from_rendered_image = null; //will be used later in the dialog screen //todo: delete this if not passing the data to the dialog screen.
+    Bitmap last_bitmap_from_rendered_image_when_thermal_data_was_recieved = null; //will be used later in the dialog screen //NOTE: the purpose of this var, is for the students to recieve the closest match to the frame they need  to blend thermal data with msx image
 
     @Override
     public void onFrameProcessed(RenderedImage renderedImage) {
 
-        if (renderedImage.imageType() == RenderedImage.ImageType.BlendedMSXRGBA8888Image) {
+        if (renderedImage.imageType() == RenderedImage.ImageType.VisibleAlignedRGBA8888Image) {  //todo: might need to change the image type later.
             // then, display the image
 
             // create a bitmap from the data
@@ -148,7 +143,7 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
             final Bitmap imageBitmap = Bitmap.createBitmap(renderedImage.width(), renderedImage.height(), Bitmap.Config.ARGB_8888);
             // note from video for the next lines: "use a byte buffer to copy pixel data, and remember to update the UI from the UI thread"
             imageBitmap.copyPixelsFromBuffer(ByteBuffer.wrap(renderedImage.pixelData()));
-            final ImageView imageView = (ImageView)findViewById(R.id.imageView);  //todo: maybe this line isnt supposed to be here, but is supposed to be before "onCreate"?????
+            //final ImageView imageView = (ImageView)findViewById(R.id.imageView);  //todo: maybe this line isnt supposed to be here, but is supposed to be before "onCreate"????? im trying this now.
 
             final Bitmap imageBitmap2 = renderedImage.getBitmap();
 
@@ -169,8 +164,8 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
         } else if (renderedImage.imageType() == RenderedImage.ImageType.ThermalRadiometricKelvinImage) {
 
             //we'll save the button now so we can use it when the user presses the button.
-            last_radiometric_image_rendered = renderedImage;
-
+            last_radiometric_image_rendered = renderedImage;                                                //i hope there's a CTOR to copy this //todo: do i need to use "new" here?
+            last_bitmap_from_rendered_image_when_thermal_data_was_recieved = last_bitmap_from_rendered_image; //i hope there's a CTOR to copy this //todo: do i need to use "new" here?
         }
 
 
@@ -216,35 +211,8 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
     }
 
     @Override
-    public void onAutomaticTuningChanged(boolean b) {
+    public void onAutomaticTuningChanged(boolean b) {}
 
-    }
-
-    // arg1:  View view  - not sure if this is needed
-    public void buttonPressedFunction_old() {
-        Log.d(TAG, "Entered buttonPressedFunction");
-
-        //perform actions. saving actions ?
-
-        String filename = "filename";
-
-        BufferedWriter outputWriter = null;
-        try {
-            outputWriter = new BufferedWriter(new FileWriter(filename));
-
-            outputWriter.write(Arrays.toString(last_radiometric_image_rendered.thermalPixelValues()));  //can also use a loop, with the command: outputWriter.write(Integer.toString(array[i]);
-
-            outputWriter.flush();
-            outputWriter.close();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-
-        Log.d(TAG, "Breakpoint point");
-
-    }
 
     // note that i didnt use the "button.setOnClickListener ..... way of doing this -
     //i simply created a function as you see below, and added it as what is opened when you press the button in the xml file.
@@ -254,8 +222,6 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
         // dialog part
         openDialog_keep_or_discard();
         // NOTE: after this function. the var' extra_filename_info_from_user will have the additional info needed for the file name
-
-      
 
         Log.d(TAG, "Breakpoint point");
 
@@ -333,7 +299,7 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
         // Create the storage directory if it does not exist
         if (! myMediaStorageDir.exists()){
             if (! myMediaStorageDir.mkdirs()){
-                Log.d("MyCameraApp", "failed to create directory");
+                Log.d(TAG, "failed to create directory");
                 // todo: needs to throw / write an error message..
             }
         }
@@ -351,12 +317,16 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
             // meaning this could not be done
             temp_check_bool = false;
         }
-
+        if (temp_check_bool == false) {
+            Toast.makeText(getApplicationContext(), "problem using dir. ", Toast.LENGTH_SHORT).show();  //todo: NOTE this line MOIGHT cause a crash
+            Log.d(TAG, "problem using dir. ");
+            return;
+        }
         // Create a media file name
 //        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String timeStamp = new SimpleDateFormat("ddMMyyyy_HHmmss").format(new Date());
-
-        File textFile = new File(myMediaStorageDir.getPath() + File.separator + "RCKD_"+ extra_filename_info_from_user + "_" + timeStamp + ".txt"); // RCKD = rendered centi-kelvin data
+        // RCKD = Rendered Centi-Kelvin Data
+        File textFile = new File(myMediaStorageDir.getPath() + File.separator + "RCKD_"+ extra_filename_info_from_user + "_" + timeStamp + ".txt");
 
         String full_file_name_w_location_string = textFile.getAbsolutePath();
 
@@ -373,6 +343,7 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
             e.printStackTrace();
         }
 
+        // todo: later on, check wich media scanned actually works, and delete the rest
         MediaScannerConnection.scanFile(this, new String[] {full_file_name_w_location_string}, null, null);
         MediaScannerConnection.scanFile(this, new String[] {myMediaStorageDir.getPath()}, null, null);
         MediaScannerConnection.scanFile(this, new String[] {myMediaStorageDir.toString()}, null, null);
@@ -381,12 +352,36 @@ public class MainActivity extends AppCompatActivity implements Device.Delegate ,
 
 
         Toast.makeText(getApplicationContext(), "final file name: " + "RCKD_"+ extra_filename_info_from_user + "_" + timeStamp + ".txt", Toast.LENGTH_SHORT).show();  //todo: NOTE this line MOIGHT cause a crash
-
+        Log.d(TAG, "Saved ! final file name: " + "RCKD_"+ extra_filename_info_from_user + "_" + timeStamp + ".txt");
 
         Log.d(TAG, "Breakpoint point");
 
+        // --------------- new part: trying to save the second image !!!------------------------------
+
+        // note this has the same time stamp and extra filename info from user from before - to have a correlation with the RCKD file
+        File image_file_path = new File(myMediaStorageDir.getPath() + File.separator + "img_"+ extra_filename_info_from_user + "_" + timeStamp + ".png"); // todo: not sure about the file type extension
 
 
+        FileOutputStream outputStream2 = null;
+        try {
+            //second argument of FileOutputStream constructor indicates whether
+            //to append or create new file if one exists
+            outputStream2 = new FileOutputStream(image_file_path.getAbsolutePath());
+            last_bitmap_from_rendered_image_when_thermal_data_was_recieved.compress(Bitmap.CompressFormat.PNG, 100, outputStream2);
+            // PNG is a lossless format, the compression factor (100) is ignored
+            outputStream2.flush();
+            outputStream2.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // todo: later on, check wich media scanned actually works, and delete the rest
+        MediaScannerConnection.scanFile(this, new String[] {image_file_path.getAbsolutePath()}, null, null);
+        MediaScannerConnection.scanFile(this, new String[] {image_file_path.getAbsolutePath().toString()}, null, null);
+
+        Log.d(TAG, "Saved ! final file name: " + "img_"+ extra_filename_info_from_user + "_" + timeStamp + ".png");
+
+        Log.d(TAG, "Breakpoint point");
     }
 
 
